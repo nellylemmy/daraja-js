@@ -223,6 +223,34 @@ describe('b2c.send', () => {
       }),
     ).rejects.toBeInstanceOf(DarajaValidationError);
   });
+
+  it('sends a padded originatorConversationId verbatim (no trimming on the wire)', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    let hitV1 = false;
+    server.use(
+      http.post(ENDPOINT, () => {
+        hitV1 = true;
+        return HttpResponse.json(ACCEPTED);
+      }),
+      http.post(ENDPOINT_V3, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...ACCEPTED, OriginatorConversationID: ' studio-4f3c ' });
+      }),
+    );
+
+    await makeDaraja().b2c.send({
+      phone: '254792471415',
+      amount: 1,
+      originatorConversationId: ' studio-4f3c ',
+      resultUrl: 'https://example.com/b2c/result',
+      queueTimeoutUrl: 'https://example.com/b2c/timeout',
+    });
+
+    // pinned by docs/specs/b2c-v3.md
+    expect(hitV1).toBe(false);
+    expect(body.OriginatorConversationID).toBe(' studio-4f3c ');
+  });
 });
 
 describe('parseB2cResult', () => {
