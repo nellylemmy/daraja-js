@@ -7,6 +7,7 @@ import { parseB2cResult } from '../../src/resources/b2c.js';
 
 const SANDBOX = 'https://sandbox.safaricom.co.ke';
 const ENDPOINT = `${SANDBOX}/mpesa/b2c/v1/paymentrequest`;
+const ENDPOINT_V3 = `${SANDBOX}/mpesa/b2c/v3/paymentrequest`;
 const server = setupServer();
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
@@ -153,6 +154,74 @@ describe('b2c.send', () => {
       }),
     ).rejects.toBeInstanceOf(DarajaAPIError);
     expect(calls).toBe(1); // money-mover: never re-sent on 5xx
+  });
+
+  it('uses the v3 endpoint and sends OriginatorConversationID when the caller supplies one', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    let hitV1 = false;
+    server.use(
+      http.post(ENDPOINT, () => {
+        hitV1 = true;
+        return HttpResponse.json(ACCEPTED);
+      }),
+      http.post(ENDPOINT_V3, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...ACCEPTED, OriginatorConversationID: 'studio-4f3c' });
+      }),
+    );
+
+    const res = await makeDaraja().b2c.send({
+      phone: '0792471415',
+      amount: 1,
+      originatorConversationId: 'studio-4f3c',
+      resultUrl: 'https://example.com/b2c/result',
+      queueTimeoutUrl: 'https://example.com/b2c/timeout',
+    });
+
+    // pinned by docs/specs/b2c-v3.md
+    expect(hitV1).toBe(false);
+    expect(body.OriginatorConversationID).toBe('studio-4f3c');
+    expect(body.InitiatorName).toBe('KILELO');
+    expect(body.CommandID).toBe('BusinessPayment');
+    expect(body.Amount).toBe(1);
+    expect(body.PartyA).toBe(600999);
+    expect(body.PartyB).toBe(254792471415);
+    expect(res.originatorConversationId).toBe('studio-4f3c');
+  });
+
+  it('keeps the v1 endpoint and body when no originatorConversationId is given (1.4.1 unchanged)', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(ENDPOINT, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(ACCEPTED);
+      }),
+      http.post(ENDPOINT_V3, () => {
+        throw new Error('v3 must not be called without an originatorConversationId');
+      }),
+    );
+    await makeDaraja().b2c.send({
+      phone: '254792471415',
+      amount: 1,
+      resultUrl: 'https://example.com/b2c/result',
+      queueTimeoutUrl: 'https://example.com/b2c/timeout',
+    });
+    // pinned by docs/specs/b2c-v3.md
+    expect('OriginatorConversationID' in body).toBe(false);
+  });
+
+  it('rejects a blank originatorConversationId', async () => {
+    await expect(
+      makeDaraja().b2c.send({
+        phone: '254792471415',
+        amount: 1,
+        originatorConversationId: '  ',
+        resultUrl: 'https://example.com/b2c/result',
+        queueTimeoutUrl: 'https://example.com/b2c/timeout',
+      }),
+    ).rejects.toBeInstanceOf(DarajaValidationError);
   });
 });
 
