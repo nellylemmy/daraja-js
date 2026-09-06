@@ -1,6 +1,6 @@
 {
   "name": "@kepas/daraja-js",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Type-safe Node.js/TypeScript SDK for Safaricom Daraja (M-Pesa). Encodes the production gotchas that silently break real PayBills. By KEPAS Technologies (kepas.co.ke).",
   "keywords": [
     "mpesa",
