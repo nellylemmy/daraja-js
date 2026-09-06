@@ -3,8 +3,9 @@
  *
  * - `stkPush` — query an STK Push outcome by CheckoutRequestID. SYNCHRONOUS:
  *   Daraja returns the result inline (no callback). Uses passkey auth.
- * - `transaction` — query any transaction by receipt. ASYNC + initiator-authed;
- *   the result lands at your `resultUrl` (parse with `parseStatusResult`).
+ * - `transaction` — query any transaction by receipt, or by OriginatorConversationID
+ *   when no receipt exists. ASYNC + initiator-authed; the result lands at your
+ *   `resultUrl` (parse with `parseStatusResult`).
  */
 
 import type { DarajaConfig } from '../client.js';
@@ -44,7 +45,13 @@ interface StkStatusRaw {
 }
 
 export interface TransactionStatusInput {
-  transactionId: string;
+  /** M-Pesa receipt of the transaction to query, e.g. `NLJ7RT61SV`. Give this or `originatorConversationId`. */
+  transactionId?: string;
+  /**
+   * OriginatorConversationID of the original request — for transactions that never
+   * returned a receipt (lost callback). Safaricom accepts it in place of `TransactionID`.
+   */
+  originatorConversationId?: string;
   resultUrl: string;
   queueTimeoutUrl: string;
   remarks?: string;
@@ -74,6 +81,10 @@ export interface StatusResult extends CodeClassificationFields {
   transactionId: string;
   success: boolean;
   params: Record<string, unknown>;
+  /** The `TransactionStatus` result parameter (e.g. `Completed`), verbatim. */
+  transactionStatus?: string | undefined;
+  /** The `ReceiptNo` result parameter — the M-Pesa receipt of the queried transaction. */
+  receipt?: string | undefined;
 }
 
 interface ResultEnvelope {
@@ -127,21 +138,28 @@ export async function transaction(
       'status.transaction requires config.initiator and config.securityCredential',
     );
   }
-  const raw = await http.post<AckRaw>(
-    TX_QUERY,
-    {
-      Initiator: config.initiator,
-      SecurityCredential: config.securityCredential,
-      CommandID: 'TransactionStatusQuery',
-      TransactionID: input.transactionId,
-      PartyA: Number(config.shortcode),
-      IdentifierType: input.identifierType ?? '4',
-      Remarks: (input.remarks ?? 'Status query').slice(0, 100),
-      QueueTimeOutURL: input.queueTimeoutUrl,
-      ResultURL: input.resultUrl,
-    },
-    { retryable: true },
-  ); // status query — safe to retry on 5xx
+  const transactionId = input.transactionId?.trim() ?? '';
+  const originatorConversationId = input.originatorConversationId?.trim() ?? '';
+  if (!transactionId && !originatorConversationId) {
+    throw new DarajaValidationError(
+      'status.transaction requires transactionId (receipt) or originatorConversationId',
+    );
+  }
+  const body: Record<string, unknown> = {
+    Initiator: config.initiator,
+    SecurityCredential: config.securityCredential,
+    CommandID: 'TransactionStatusQuery',
+    // Safaricom requires the field; it is empty when querying by OriginatorConversationID.
+    TransactionID: transactionId,
+    PartyA: Number(config.shortcode),
+    IdentifierType: input.identifierType ?? '4',
+    Remarks: (input.remarks ?? 'Status query').slice(0, 100),
+    QueueTimeOutURL: input.queueTimeoutUrl,
+    ResultURL: input.resultUrl,
+  };
+  // Only added when given, so the 1.4.1 receipt-only body is byte-identical.
+  if (originatorConversationId) body.OriginatorConversationID = originatorConversationId;
+  const raw = await http.post<AckRaw>(TX_QUERY, body, { retryable: true }); // status query — safe to retry on 5xx
   if (raw.ResponseCode !== '0') {
     throw errorFromResponse({
       scope: 'status',
@@ -169,6 +187,16 @@ export function parseStatusResult(body: unknown): StatusResult {
   for (const it of toArray(result.ResultParameters?.ResultParameter)) {
     params[it.Key] = it.Value;
   }
+  // Lift the two fields callers branch on. Keys are matched with spaces removed and
+  // case-folded because the portal shows them in more than one spelling.
+  const fold = (k: string) => k.replace(/\s+/g, '').toLowerCase();
+  let transactionStatus: string | undefined;
+  let receipt: string | undefined;
+  for (const [k, v] of Object.entries(params)) {
+    const f = fold(k);
+    if (f === 'transactionstatus' && v != null) transactionStatus = String(v);
+    if (f === 'receiptno' && v != null) receipt = String(v);
+  }
   const out: StatusResult = {
     resultCode: result.ResultCode,
     resultDesc: result.ResultDesc ?? '',
@@ -178,5 +206,7 @@ export function parseStatusResult(body: unknown): StatusResult {
     success: result.ResultCode === 0,
     params,
   };
+  if (transactionStatus !== undefined) out.transactionStatus = transactionStatus;
+  if (receipt !== undefined) out.receipt = receipt;
   return applyClassification(out, 'status', out.resultCode, out.resultDesc);
 }
