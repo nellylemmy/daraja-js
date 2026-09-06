@@ -223,7 +223,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     success: false,
     canonicalMeaning: 'Security credential locked.',
     authoredMessage:
-      "The API operator's Security Credential is locked. Reset the operator password in the Safaricom portal (Organization Operator › Reset Password), then set the new credential.",
+      "The API operator's Security Credential is locked. Reset the operator password on the M-Pesa org portal, then set the new credential.",
     retriable: false,
     terminal: true,
     proof: [

@@ -177,16 +177,36 @@ describe('b2c.send', () => {
       originatorConversationId: 'studio-4f3c',
       resultUrl: 'https://example.com/b2c/result',
       queueTimeoutUrl: 'https://example.com/b2c/timeout',
+      remarks: 'rent',
+      occasion: 'September',
     });
 
     // pinned by docs/specs/b2c-v3.md
     expect(hitV1).toBe(false);
-    expect(body.OriginatorConversationID).toBe('studio-4f3c');
+    expect(Object.keys(body)).toEqual([
+      'InitiatorName',
+      'SecurityCredential',
+      'CommandID',
+      'Amount',
+      'PartyA',
+      'PartyB',
+      'Remarks',
+      'QueueTimeOutURL',
+      'ResultURL',
+      'Occasion',
+      'OriginatorConversationID',
+    ]);
     expect(body.InitiatorName).toBe('KILELO');
+    expect(body.SecurityCredential).toBe('sec-cred');
     expect(body.CommandID).toBe('BusinessPayment');
     expect(body.Amount).toBe(1);
     expect(body.PartyA).toBe(600999);
     expect(body.PartyB).toBe(254792471415);
+    expect(body.Remarks).toBe('rent');
+    expect(body.QueueTimeOutURL).toBe('https://example.com/b2c/timeout');
+    expect(body.ResultURL).toBe('https://example.com/b2c/result');
+    expect(body.Occasion).toBe('September');
+    expect(body.OriginatorConversationID).toBe('studio-4f3c');
     expect(res.originatorConversationId).toBe('studio-4f3c');
   });
 
