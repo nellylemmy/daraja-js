@@ -182,7 +182,30 @@ describe('status.transaction (async query)', () => {
       resultUrl: 'https://example.com/r',
       queueTimeoutUrl: 'https://example.com/t',
     });
+    // pinned by docs/specs/transaction-status.md
     expect(body.TransactionID).toBe('NLJ7RT61SV');
+    expect('OriginatorConversationID' in body).toBe(false);
+  });
+
+  it('sends a whitespace-padded receipt verbatim (1.4.1 body unchanged)', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${SANDBOX}/mpesa/transactionstatus/v1/query`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ConversationID: 'AG_1',
+          OriginatorConversationID: 'o',
+          ResponseCode: '0',
+        });
+      }),
+    );
+    await makeDaraja().status.transaction({
+      transactionId: ' NLJ7RT61SV ',
+      resultUrl: 'https://example.com/r',
+      queueTimeoutUrl: 'https://example.com/t',
+    });
+    expect(body.TransactionID).toBe(' NLJ7RT61SV ');
     expect('OriginatorConversationID' in body).toBe(false);
   });
 
@@ -205,6 +228,7 @@ describe('status.transaction (async query)', () => {
       resultUrl: 'https://example.com/r',
       queueTimeoutUrl: 'https://example.com/t',
     });
+    // pinned by docs/specs/transaction-status.md
     expect(body.TransactionID).toBe('NLJ7RT61SV');
     expect(body.OriginatorConversationID).toBe('orig-9');
   });

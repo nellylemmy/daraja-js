@@ -138,9 +138,11 @@ export async function transaction(
       'status.transaction requires config.initiator and config.securityCredential',
     );
   }
-  const transactionId = input.transactionId?.trim() ?? '';
-  const originatorConversationId = input.originatorConversationId?.trim() ?? '';
-  if (!transactionId && !originatorConversationId) {
+  // Trim only for the emptiness check; the wire body carries the ids verbatim so the
+  // 1.4.1 body is byte-identical for every previously accepted (e.g. whitespace-padded) input.
+  const transactionId = input.transactionId ?? '';
+  const originatorConversationId = input.originatorConversationId ?? '';
+  if (!transactionId.trim() && !originatorConversationId.trim()) {
     throw new DarajaValidationError(
       'status.transaction requires transactionId (receipt) or originatorConversationId',
     );
@@ -158,7 +160,7 @@ export async function transaction(
     ResultURL: input.resultUrl,
   };
   // Only added when given, so the 1.4.1 receipt-only body is byte-identical.
-  if (originatorConversationId) body.OriginatorConversationID = originatorConversationId;
+  if (originatorConversationId.trim()) body.OriginatorConversationID = originatorConversationId;
   const raw = await http.post<AckRaw>(TX_QUERY, body, { retryable: true }); // status query — safe to retry on 5xx
   if (raw.ResponseCode !== '0') {
     throw errorFromResponse({
@@ -192,6 +194,8 @@ export function parseStatusResult(body: unknown): StatusResult {
   const fold = (k: string) => k.replace(/\s+/g, '').toLowerCase();
   let transactionStatus: string | undefined;
   let receipt: string | undefined;
+  // Object.entries preserves insertion order, so if two keys fold to the same name
+  // (e.g. both 'TransactionStatus' and 'Transaction Status' present) the last one wins.
   for (const [k, v] of Object.entries(params)) {
     const f = fold(k);
     if (f === 'transactionstatus' && v != null) transactionStatus = String(v);
