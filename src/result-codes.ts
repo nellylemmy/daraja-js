@@ -199,6 +199,40 @@ export const CATALOG: readonly CatalogEntry[] = [
     terminal: false,
     proof: [db()],
   },
+  {
+    scope: 'b2c',
+    codeType: 'resultCode',
+    code: '2001',
+    success: false,
+    canonicalMeaning: 'The initiator information is invalid.',
+    authoredMessage:
+      'Safaricom rejected the API operator credential (wrong operator password or Security Credential). Re-enter the operator password in the Safaricom portal, then set the new credential.',
+    retriable: false,
+    terminal: true,
+    proof: [
+      {
+        kind: 'safaricom-docs',
+        ref: 'docs/specs/business-to-pochi.md async failure (ResultCode 2001)',
+      },
+    ],
+  },
+  {
+    scope: 'b2c',
+    codeType: 'resultCode',
+    code: '8006',
+    success: false,
+    canonicalMeaning: 'Security credential locked.',
+    authoredMessage:
+      'The API operator is locked after too many failed attempts. Reset the operator password in the Safaricom portal (Organization Operator › Reset Password), then set the new credential.',
+    retriable: false,
+    terminal: true,
+    proof: [
+      {
+        kind: 'safaricom-docs',
+        ref: 'docs/specs/business-to-pochi.md result codes (8006 security credential locked)',
+      },
+    ],
+  },
 
   // ── B2B + float transfers (async ResultCode, shared endpoint) ────────────
   {
@@ -248,6 +282,28 @@ export const CATALOG: readonly CatalogEntry[] = [
     terminal: false,
     proof: [db()],
   },
+  {
+    scope: 'b2b',
+    codeType: 'resultCode',
+    code: '2001',
+    success: false,
+    canonicalMeaning: 'The initiator information is invalid.',
+    authoredMessage:
+      'Safaricom rejected the API operator credential (wrong operator password or Security Credential). Re-enter the operator password in the Safaricom portal, then set the new credential.',
+    retriable: false,
+    terminal: true,
+    proof: [
+      {
+        kind: 'safaricom-docs',
+        ref: 'docs/specs/b2c-account-topup.md failure (ResultCode 2001)',
+      },
+      {
+        kind: 'safaricom-docs',
+        ref: 'docs/specs/tax-remittance.md failure example (ResultCode 2001)',
+      },
+    ],
+  },
+  // b2b 8006 (security credential locked): add when a proof document for a b2b endpoint lists it.
 
   // ── Account Balance (async ResultCode) ───────────────────────────────────
   {

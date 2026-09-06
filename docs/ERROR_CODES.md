@@ -43,6 +43,8 @@
 | `0` | resultCode | ✅ | Payout completed. | no | yes | — | production-observed |
 | `1` | resultCode | — | Your Utility (B2C) account has insufficient funds. Top it up (B2B transfer Working→Utility) and retry. | yes | no | DarajaInsufficientFundsError | production-observed |
 | `2` | resultCode | — | Amount is below M-Pesa’s minimum for this payout. Increase the amount. | no | no | DarajaAPIError | production-observed |
+| `2001` | resultCode | — | Safaricom rejected the API operator credential (wrong operator password or Security Credential). Re-enter the operator password in the Safaricom portal, then set the new credential. | no | yes | DarajaAPIError | safaricom-docs |
+| `8006` | resultCode | — | The API operator is locked after too many failed attempts. Reset the operator password in the Safaricom portal (Organization Operator › Reset Password), then set the new credential. | no | yes | DarajaAPIError | safaricom-docs |
 
 ## B2B + float transfers (`b2b`)
 
@@ -52,6 +54,7 @@
 | `1` | resultCode | — | The sending (Working) account has insufficient funds. Fund it and retry. | yes | no | DarajaInsufficientFundsError | production-observed |
 | `21` | resultCode | — | The initiator is not permitted to perform this B2B/float operation. Check the initiator name + its role/permissions on the M-Pesa org portal. | no | no | DarajaAPIError | production-observed |
 | `SFC_IC0003` | resultCode | — | The receiver is invalid — wrong destination shortcode, or wrong ReceiverIdentifierType for the CommandID (PayBill=4, BuyGoods=2). | no | no | DarajaAPIError | production-observed |
+| `2001` | resultCode | — | Safaricom rejected the API operator credential (wrong operator password or Security Credential). Re-enter the operator password in the Safaricom portal, then set the new credential. | no | yes | DarajaAPIError | safaricom-docs |
 
 ## Account Balance (`balance`)
 
