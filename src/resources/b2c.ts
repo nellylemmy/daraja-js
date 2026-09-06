@@ -6,6 +6,8 @@
  * `securityCredential` on the client (see `generateSecurityCredential`). The
  * call is async — the sync ack only confirms acceptance; the real outcome lands
  * at your `resultUrl`, parsed with `parseB2cResult`.
+ *
+ * Pass `originatorConversationId` to use B2C v3 with your own idempotency key; omit it for v1.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -32,6 +34,12 @@ export interface B2cSendInput {
   commandId?: B2cCommandId;
   remarks?: string;
   occasion?: string;
+  /**
+   * Caller-generated OriginatorConversationID (idempotency / double-disbursement guard).
+   * When given, the request goes to the B2C **v3** endpoint, which accepts it; when omitted,
+   * the v1 endpoint and body are exactly those of 1.4.1.
+   */
+  originatorConversationId?: string;
 }
 
 export interface B2cSendResult {
@@ -49,6 +57,7 @@ interface B2cRaw {
 }
 
 const ENDPOINT = '/mpesa/b2c/v1/paymentrequest';
+const ENDPOINT_V3 = '/mpesa/b2c/v3/paymentrequest';
 
 export async function send(
   http: HttpClient,
@@ -60,8 +69,12 @@ export async function send(
   }
   const partyB = phoneToNumber(input.phone); // numeric MSISDN, throws on bad input
   const amount = validateAmount(input.amount);
+  const ocid = input.originatorConversationId;
+  if (ocid !== undefined && ocid.trim() === '') {
+    throw new DarajaValidationError('originatorConversationId must not be blank');
+  }
 
-  const raw = await http.post<B2cRaw>(ENDPOINT, {
+  const body: Record<string, unknown> = {
     InitiatorName: config.initiator,
     SecurityCredential: config.securityCredential,
     CommandID: input.commandId ?? 'BusinessPayment',
@@ -72,7 +85,10 @@ export async function send(
     QueueTimeOutURL: input.queueTimeoutUrl,
     ResultURL: input.resultUrl,
     Occasion: (input.occasion ?? '').slice(0, 100),
-  });
+  };
+  if (ocid !== undefined) body.OriginatorConversationID = ocid;
+
+  const raw = await http.post<B2cRaw>(ocid !== undefined ? ENDPOINT_V3 : ENDPOINT, body);
 
   if (raw.ResponseCode !== '0') {
     throw errorFromResponse({

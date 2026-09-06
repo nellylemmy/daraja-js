@@ -53,6 +53,29 @@ describe('lookup', () => {
   it('returns undefined for an unproven code', () => {
     expect(lookup('stk', 'resultCode', '9999')).toBeUndefined();
   });
+
+  it('catalogues the initiator-credential failures (2001 invalid, 8006 locked) for b2c, and 2001 for b2b', () => {
+    for (const [scope, code] of [
+      ['b2c', '2001'],
+      ['b2b', '2001'],
+    ] as const) {
+      const invalid = lookup(scope, 'resultCode', code);
+      expect(invalid?.success).toBe(false);
+      expect(invalid?.canonicalMeaning).toMatch(/initiator information is invalid/i);
+      expect(invalid?.authoredMessage).toMatch(/operator|initiator/i);
+      expect(invalid?.retriable).toBe(false);
+      expect(invalid?.terminal).toBe(true);
+    }
+    const locked = lookup('b2c', 'resultCode', '8006');
+    expect(locked?.success).toBe(false);
+    expect(locked?.canonicalMeaning).toMatch(/locked/i);
+    expect(locked?.retriable).toBe(false);
+    expect(locked?.terminal).toBe(true);
+    // Not yet proven for a b2b endpoint — deliberately absent.
+    expect(lookup('b2b', 'resultCode', '8006')).toBeUndefined();
+    // Still scope-specific: 2001 on stk is not asserted.
+    expect(lookup('stk', 'resultCode', '2001')).toBeUndefined();
+  });
 });
 
 describe('classify', () => {

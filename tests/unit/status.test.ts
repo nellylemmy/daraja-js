@@ -133,6 +133,124 @@ describe('status.transaction (async query)', () => {
       }),
     ).rejects.toBeInstanceOf(DarajaAPIError);
   });
+
+  it('queries by originatorConversationId when no receipt exists (TransactionID sent empty)', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${SANDBOX}/mpesa/transactionstatus/v1/query`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ConversationID: 'AG_2',
+          OriginatorConversationID: 'orig_2',
+          ResponseCode: '0',
+          ResponseDescription: 'Accept the service request successfully.',
+        });
+      }),
+    );
+
+    const res = await makeDaraja().status.transaction({
+      originatorConversationId: '3f0c1d2e-9a7b-4c1d-8e2f-1a2b3c4d5e6f',
+      resultUrl: 'https://example.com/r',
+      queueTimeoutUrl: 'https://example.com/t',
+    });
+
+    // pinned by docs/specs/transaction-status.md
+    expect(body.CommandID).toBe('TransactionStatusQuery');
+    expect(body.OriginatorConversationID).toBe('3f0c1d2e-9a7b-4c1d-8e2f-1a2b3c4d5e6f');
+    expect(body.TransactionID).toBe('');
+    expect(body.PartyA).toBe(600999);
+    expect(body.IdentifierType).toBe('4');
+    expect(res.conversationId).toBe('AG_2');
+  });
+
+  it('omits OriginatorConversationID from the body when querying by receipt (1.4.1 body unchanged)', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${SANDBOX}/mpesa/transactionstatus/v1/query`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ConversationID: 'AG_1',
+          OriginatorConversationID: 'o',
+          ResponseCode: '0',
+        });
+      }),
+    );
+    await makeDaraja().status.transaction({
+      transactionId: 'NLJ7RT61SV',
+      resultUrl: 'https://example.com/r',
+      queueTimeoutUrl: 'https://example.com/t',
+    });
+    // pinned by docs/specs/transaction-status.md
+    expect(body.TransactionID).toBe('NLJ7RT61SV');
+    expect('OriginatorConversationID' in body).toBe(false);
+  });
+
+  it('sends a whitespace-padded receipt verbatim (1.4.1 body unchanged)', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${SANDBOX}/mpesa/transactionstatus/v1/query`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ConversationID: 'AG_1',
+          OriginatorConversationID: 'o',
+          ResponseCode: '0',
+        });
+      }),
+    );
+    await makeDaraja().status.transaction({
+      transactionId: ' NLJ7RT61SV ',
+      resultUrl: 'https://example.com/r',
+      queueTimeoutUrl: 'https://example.com/t',
+    });
+    expect(body.TransactionID).toBe(' NLJ7RT61SV ');
+    expect('OriginatorConversationID' in body).toBe(false);
+  });
+
+  it('sends both ids when both are given', async () => {
+    mockOAuth();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${SANDBOX}/mpesa/transactionstatus/v1/query`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ConversationID: 'AG_1',
+          OriginatorConversationID: 'o',
+          ResponseCode: '0',
+        });
+      }),
+    );
+    await makeDaraja().status.transaction({
+      transactionId: 'NLJ7RT61SV',
+      originatorConversationId: 'orig-9',
+      resultUrl: 'https://example.com/r',
+      queueTimeoutUrl: 'https://example.com/t',
+    });
+    // pinned by docs/specs/transaction-status.md
+    expect(body.TransactionID).toBe('NLJ7RT61SV');
+    expect(body.OriginatorConversationID).toBe('orig-9');
+  });
+
+  it('throws DarajaValidationError when neither transactionId nor originatorConversationId is given', async () => {
+    await expect(
+      makeDaraja().status.transaction({
+        resultUrl: 'https://example.com/r',
+        queueTimeoutUrl: 'https://example.com/t',
+      }),
+    ).rejects.toBeInstanceOf(DarajaValidationError);
+  });
+
+  it('rejects blank ids the same way', async () => {
+    await expect(
+      makeDaraja().status.transaction({
+        transactionId: '   ',
+        resultUrl: 'https://example.com/r',
+        queueTimeoutUrl: 'https://example.com/t',
+      }),
+    ).rejects.toBeInstanceOf(DarajaValidationError);
+  });
 });
 
 describe('parseStatusResult', () => {
@@ -156,5 +274,66 @@ describe('parseStatusResult', () => {
 
   it('throws on a non-result envelope', () => {
     expect(() => parseStatusResult({ x: 1 })).toThrow(DarajaValidationError);
+  });
+
+  it('lifts TransactionStatus and ReceiptNo onto the result', () => {
+    const r = parseStatusResult({
+      Result: {
+        ResultCode: 0,
+        ResultDesc: 'The service request is processed successfully.',
+        ConversationID: 'AG_1',
+        OriginatorConversationID: 'orig_1',
+        TransactionID: 'NLJ7RT61SV',
+        ResultParameters: {
+          ResultParameter: [
+            { Key: 'DebitPartyName', Value: '600999 - KEPAS' },
+            { Key: 'CreditPartyName', Value: '254792471415 - Nelson Lemein' },
+            { Key: 'OriginatorConversationID', Value: 'orig_1' },
+            { Key: 'InitiatedTime', Value: 20260906121500 },
+            { Key: 'DebitAccountType', Value: 'Utility Account' },
+            { Key: 'DebitPartyCharges', Value: '' },
+            { Key: 'TransactionReason', Value: '' },
+            { Key: 'ReasonType', Value: 'Business Payment to Customer via API' },
+            { Key: 'TransactionStatus', Value: 'Completed' },
+            { Key: 'FinalisedTime', Value: 20260906121502 },
+            { Key: 'Amount', Value: 1 },
+            { Key: 'ConversationID', Value: 'AG_1' },
+            { Key: 'ReceiptNo', Value: 'RI6BZTPXNM' },
+          ],
+        },
+      },
+    });
+    // pinned by docs/specs/transaction-status.md
+    expect(r.transactionStatus).toBe('Completed');
+    expect(r.receipt).toBe('RI6BZTPXNM');
+    expect(r.params.Amount).toBe(1);
+  });
+
+  it('tolerates spaced or differently-cased parameter keys for the two lifted fields', () => {
+    const r = parseStatusResult({
+      Result: {
+        ResultCode: 0,
+        ResultDesc: 'OK',
+        ResultParameters: {
+          ResultParameter: [
+            { Key: 'Transaction Status', Value: 'Failed' },
+            { Key: 'Receipt No', Value: 'RI6BZTPXNN' },
+          ],
+        },
+      },
+    });
+    expect(r.transactionStatus).toBe('Failed');
+    expect(r.receipt).toBe('RI6BZTPXNN');
+    // Original keys stay untouched in params.
+    expect(r.params['Transaction Status']).toBe('Failed');
+  });
+
+  it('leaves transactionStatus and receipt undefined when the parameters are absent', () => {
+    const r = parseStatusResult({
+      Result: { ResultCode: 2001, ResultDesc: 'The initiator information is invalid.' },
+    });
+    expect(r.transactionStatus).toBeUndefined();
+    expect(r.receipt).toBeUndefined();
+    expect(r.success).toBe(false);
   });
 });

@@ -218,7 +218,7 @@ Two more come as helpers: amounts of 100 KES or less on B2B PayBill are free (th
 
 **Disbursement (money out):**
 
-- `b2c.send` + `parseB2cResult` — disburse to a customer phone (Utility account — gotcha #7).
+- `b2c.send` + `parseB2cResult` — disburse to a customer phone (Utility account — gotcha #7) — optional caller-generated `originatorConversationId` (B2C v3).
 - `b2c.toPochi` — pay a customer's business wallet (pochi la biashara), `BusinessPayToPochi`.
 - `b2b.pay` + `b2b.transferFloat` + `parseB2bResult` — pay another business, and move float Working↔Utility (funds B2C).
 - `b2b.topUp` — B2C Account Top Up (`BusinessPayToBulk`): load a B2C shortcode's Utility account.
@@ -231,7 +231,7 @@ Two more come as helpers: amounts of 100 KES or less on B2B PayBill are free (th
 
 **Account management & reconciliation:**
 
-- `status.stkPush` (sync) + `status.transaction` (async) + `parseStatusResult` — query a transaction's outcome.
+- `status.stkPush` (sync) + `status.transaction` (async) + `parseStatusResult` — query a transaction's outcome — by receipt, or by OriginatorConversationID when no receipt exists; `parseStatusResult` exposes `transactionStatus` and `receipt`.
 - `reversal.request` + `parseReversalResult` + `isSettledByRecipientSpend` — reverse a transaction; classify the "recipient already spent it" case (gotcha #16).
 - `balance.query` + `parseBalanceResult` / `parseAccountBalance` — query account balances, with the pipe-delimited parser (gotcha #6).
 - `pull.registerUrl` + `pull.query` — Pull Transaction API (Daraja 3.0) to backfill C2B payments missed when a callback failed (gotcha #10).
