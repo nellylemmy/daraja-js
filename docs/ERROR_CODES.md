@@ -44,7 +44,7 @@
 | `1` | resultCode | — | Your Utility (B2C) account has insufficient funds. Top it up (B2B transfer Working→Utility) and retry. | yes | no | DarajaInsufficientFundsError | production-observed |
 | `2` | resultCode | — | Amount is below M-Pesa’s minimum for this payout. Increase the amount. | no | no | DarajaAPIError | production-observed |
 | `2001` | resultCode | — | Safaricom rejected the API operator credential (wrong operator password or Security Credential). Re-enter the operator password in the Safaricom portal, then set the new credential. | no | yes | DarajaAPIError | safaricom-docs |
-| `8006` | resultCode | — | The API operator is locked after too many failed attempts. Reset the operator password in the Safaricom portal (Organization Operator › Reset Password), then set the new credential. | no | yes | DarajaAPIError | safaricom-docs |
+| `8006` | resultCode | — | The API operator's Security Credential is locked. Reset the operator password in the Safaricom portal (Organization Operator › Reset Password), then set the new credential. | no | yes | DarajaAPIError | safaricom-docs |
 
 ## B2B + float transfers (`b2b`)
 
